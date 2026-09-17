@@ -8,8 +8,9 @@ project(sw2xl_recomp LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(SW2_PGO "OFF" CACHE STRING "PGO mode: OFF, GENERATE, or USE")
-set_property(CACHE SW2_PGO PROPERTY STRINGS OFF GENERATE USE)
+set(SW2_PGO "AUTO" CACHE STRING
+    "PGO mode: AUTO, OFF, GENERATE, or USE (AUTO uses a matching local profile when present)")
+set_property(CACHE SW2_PGO PROPERTY STRINGS AUTO OFF GENERATE USE)
 set(SW2_PGO_PROFILE "${CMAKE_CURRENT_SOURCE_DIR}/pgo/sw2.profdata" CACHE FILEPATH
     "Merged Clang instrumentation profile used when SW2_PGO=USE")
 
@@ -100,16 +101,21 @@ foreach(sw2_target IN ITEMS
         if(SW2_PGO STREQUAL "GENERATE")
             target_compile_options(${sw2_target} PRIVATE -fprofile-instr-generate)
             target_link_options(${sw2_target} PRIVATE -fprofile-instr-generate)
-        elseif(SW2_PGO STREQUAL "USE")
+        elseif(SW2_PGO STREQUAL "AUTO" OR SW2_PGO STREQUAL "USE")
             if(NOT EXISTS "${SW2_PGO_PROFILE}")
-                message(FATAL_ERROR "PGO profile not found: ${SW2_PGO_PROFILE}")
+                if(SW2_PGO STREQUAL "USE")
+                    message(FATAL_ERROR "PGO profile not found: ${SW2_PGO_PROFILE}")
+                endif()
+                message(STATUS "PGO profile not found; building without PGO: ${SW2_PGO_PROFILE}")
+            else()
+                message(STATUS "Using PGO profile: ${SW2_PGO_PROFILE}")
+                target_compile_options(${sw2_target} PRIVATE
+                    "-fprofile-instr-use=${SW2_PGO_PROFILE}")
+                target_link_options(${sw2_target} PRIVATE
+                    "-fprofile-instr-use=${SW2_PGO_PROFILE}")
             endif()
-            target_compile_options(${sw2_target} PRIVATE
-                "-fprofile-instr-use=${SW2_PGO_PROFILE}")
-            target_link_options(${sw2_target} PRIVATE
-                "-fprofile-instr-use=${SW2_PGO_PROFILE}")
         elseif(NOT SW2_PGO STREQUAL "OFF")
-            message(FATAL_ERROR "SW2_PGO must be OFF, GENERATE, or USE")
+            message(FATAL_ERROR "SW2_PGO must be AUTO, OFF, GENERATE, or USE")
         endif()
     endif()
 endforeach()
