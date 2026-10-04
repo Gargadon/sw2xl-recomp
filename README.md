@@ -27,8 +27,8 @@ rexglue-sdk-win-amd64/
 │   ├── default.xex                         # juego base
 │   ├── SW2XL_US.dll                        # módulo XL
 │   └── Samurai Warriors 2 Title Update #3/
-│       ├── default.xex                      # actualización aplicada al arrancar
-│       └── default.xexp
+│       ├── default.xex                      # copia sin modificar del ejecutable base
+│       └── default.xexp                     # parche extraído del contenedor TU
 └── sw2xl-recomp/
 ```
 
@@ -37,9 +37,21 @@ No reemplaces el `default.xex` de la raíz: el manifiesto conserva el juego base
 ## Preparar juego, actualización y XL
 
 1. Extrae el juego base en `Samurai Warriors 2 (USA, Europe)`.
-2. Copia `default.xex` y `default.xexp` de Title Update #3 a `Samurai Warriors 2 Title Update #3` dentro de esa carpeta.
+2. Prepara Title Update #3 siguiendo los pasos de la siguiente sección.
 3. Copia `SW2XL_US.dll` a la raíz de `Samurai Warriors 2 (USA, Europe)`.
 4. Conserva los contenedores XL STFS en cualquier carpeta local; se importan después de compilar y no se modifican en origen.
+
+### Preparar Title Update #3 desde el paquete original
+
+La actualización original se distribuye como un único archivo, `TU_15KU1UL_000000C000000.00000000000O3`. Es un contenedor STFS con firma `LIVE`; el parche `default.xexp` está dentro. El `default.xex` necesario para este proyecto se obtiene del juego base.
+
+1. Abre el archivo `TU_15KU1UL_000000C000000.00000000000O3` con una herramienta de extracción STFS, como [Velocity](https://github.com/hetelek/Velocity), y extrae `default.xexp`.
+2. Crea `Samurai Warriors 2 Title Update #3` dentro de `Samurai Warriors 2 (USA, Europe)`.
+3. Copia el `default.xex` original del juego base a esa subcarpeta y coloca junto a él el `default.xexp` extraído.
+
+ReXGlue busca el archivo hermano `default.xexp` y aplica el parche en memoria al cargar `default.xex`. Conserva esa copia del ejecutable sin modificar: no apliques el parche previamente con otra herramienta. Mantén también el ejecutable original en la raíz del juego.
+
+Copiar únicamente el contenedor `TU_…` a esa subcarpeta no prepara la actualización. `install-dlc.ps1` / `install-dlc.sh` importan contenido XL a `userdata`; no realizan esta preparación del ejecutable y su parche.
 
 ## Compilar y ejecutar (Windows)
 
@@ -107,6 +119,12 @@ Desde la raíz del SDK:
 El binario Linux es `out/build/linux-amd64-release/samurai_warriors_2`. Hay scripts adicionales para PGO, bundle y comparación de rutas Vulkan: `build-pgo-*.sh`, `run-pgo-training.sh`, `package.sh`, `run-fbo.sh` y `run-fsi.sh`.
 
 ## Notas técnicas
+
+- El primer paso hacia el port nativo es una alternativa C++ para la conversión
+  de entrada, activable con `SW2_NATIVE_INPUT=1`; `SW2_NATIVE_INPUT=verify` compara
+  automáticamente contra la rutina original usando la misma muestra del mando.
+  Véase [native-port.md](native-port.md)
+  para el alcance, pruebas y comparación con la rutina original.
 
 - La corrección de despacho XL se aplica tras codegen con `patch-xl-codegen.ps1`/`.sh`.
 - La sincronización de eventos del juego base y XL está en `src/event_fix.cpp`.

@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.25)
+project(sw2_native_input_tests LANGUAGES CXX)
+enable_testing()
+add_executable(native_input_test input_test.cpp)
+target_compile_features(native_input_test PRIVATE cxx_std_23)
+target_include_directories(native_input_test PRIVATE ../../src)
+add_test(NAME native_input COMMAND native_input_test)
