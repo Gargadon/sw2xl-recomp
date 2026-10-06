@@ -26,25 +26,26 @@ bool IsStfsPackage(const std::filesystem::path& path) {
 
 }  // namespace
 
-void sw2_install_requested_dlc(rex::system::KernelState* kernel_state) {
+bool sw2_install_requested_dlc(rex::system::KernelState* kernel_state,
+                               bool show_message) {
   using rex::X_RESULT;
   const std::filesystem::path root(REXCVAR_GET(sw2_dlc_root));
-  if (root.empty()) return;
+  if (root.empty()) return true;
 
   std::error_code ec;
   if (!std::filesystem::is_directory(root, ec)) {
     const auto message = "DLC directory does not exist: " + root.string();
     REXLOG_ERROR("{}", message);
-    rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, message);
-    return;
+    if (show_message) rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, message);
+    return false;
   }
 
   auto* manager = kernel_state ? kernel_state->content_manager() : nullptr;
   if (!manager) {
     constexpr std::string_view message = "DLC installer: content manager is unavailable.";
     REXLOG_ERROR("{}", message);
-    rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, message);
-    return;
+    if (show_message) rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, message);
+    return false;
   }
 
   unsigned installed = 0;
@@ -83,7 +84,8 @@ void sw2_install_requested_dlc(rex::system::KernelState* kernel_state) {
       ", failed: " + std::to_string(failed) + ".\n\nContent directory: " +
       kernel_state->content_manager()->ResolveGameUserContentPath().parent_path().string();
   REXLOG_WARN("{}", message);
-  rex::ShowSimpleMessageBox(failed ? rex::SimpleMessageBoxType::Error
+  if (show_message) rex::ShowSimpleMessageBox(failed ? rex::SimpleMessageBoxType::Error
                                    : rex::SimpleMessageBoxType::Help,
                             message);
+  return candidates > 0 && failed == 0;
 }

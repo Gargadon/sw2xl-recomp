@@ -22,5 +22,9 @@ if ($DlcRoot -eq '--dlc-root') {
 if (!(Test-Path -LiteralPath $dlcRoot -PathType Container)) {
     throw "DLC directory not found: $dlcRoot"
 }
-& "$PSScriptRoot\run.ps1" --sw2_dlc_root ([IO.Path]::GetFullPath($dlcRoot)) --log_level warn
+$installer = Join-Path $PSScriptRoot 'out\build\win-amd64-release\sw2_install_dlc.exe'
+if (!(Test-Path -LiteralPath $installer -PathType Leaf)) {
+    throw 'DLC installer is missing. Run build.ps1 first.'
+}
+& $installer (Join-Path (Split-Path -Parent $PSScriptRoot) 'Samurai Warriors 2 (USA, Europe)') ([IO.Path]::GetFullPath($dlcRoot)) (Join-Path $PSScriptRoot 'userdata')
 if ($LASTEXITCODE -ne 0) { throw "DLC installation failed with exit code $LASTEXITCODE." }

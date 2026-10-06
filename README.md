@@ -11,8 +11,8 @@ Los identificadores generados `samurai_warriors_2` y `samurai_warriors_2_SW2XL_U
 - ReXGlue SDK 0.10.0 para Windows AMD64 o Linux AMD64.
 - Visual Studio 2026 Community con C++ (Windows), LLVM/Clang, CMake 3.25+ y Ninja.
 - Una extracción legal de **Samurai Warriors 2 (USA, Europe)**.
-- Los archivos de **Title Update #3** correspondientes a esa versión.
-- `SW2XL_US.dll` y paquetes STFS (`LIVE`, `PIRS` o `CON`) de una copia legal de **Samurai Warriors 2: Xtreme Legends**.
+- El contenedor original de **Title Update #3** correspondiente a esa versión: `TU_15KU1UL_000000C000000.00000000000O3`.
+- Una carpeta con los paquetes STFS (`LIVE`, `PIRS` o `CON`) de una copia legal de **Samurai Warriors 2: Xtreme Legends**, incluido el paquete que contiene `SW2XL_US.dll`.
 
 ## Estructura requerida
 
@@ -24,47 +24,50 @@ rexglue-sdk-win-amd64/
 ├── include/
 ├── lib/
 ├── Samurai Warriors 2 (USA, Europe)/
-│   ├── default.xex                         # juego base
-│   ├── SW2XL_US.dll                        # módulo XL
-│   └── Samurai Warriors 2 Title Update #3/
-│       ├── default.xex                      # copia sin modificar del ejecutable base
-│       └── default.xexp                     # parche extraído del contenedor TU
+│   ├── default.xex                         # juego base original
+│   └── data/                               # datos extraídos del juego
 └── sw2xl-recomp/
 ```
 
 No reemplaces el `default.xex` de la raíz: el manifiesto conserva el juego base como raíz de datos y selecciona el `default.xex` junto a `default.xexp` para generar y cargar Title Update #3.
 
-## Preparar juego, actualización y XL
+## Compilar (Windows)
 
 1. Extrae el juego base en `Samurai Warriors 2 (USA, Europe)`.
-2. Prepara Title Update #3 siguiendo los pasos de la siguiente sección.
-3. Copia `SW2XL_US.dll` a la raíz de `Samurai Warriors 2 (USA, Europe)`.
-4. Conserva los contenedores XL STFS en cualquier carpeta local; se importan después de compilar y no se modifican en origen.
-
-### Preparar Title Update #3 desde el paquete original
-
-La actualización original se distribuye como un único archivo, `TU_15KU1UL_000000C000000.00000000000O3`. Es un contenedor STFS con firma `LIVE`; el parche `default.xexp` está dentro. El `default.xex` necesario para este proyecto se obtiene del juego base.
-
-1. Abre el archivo `TU_15KU1UL_000000C000000.00000000000O3` con una herramienta de extracción STFS, como [Velocity](https://github.com/hetelek/Velocity), y extrae `default.xexp`.
-2. Crea `Samurai Warriors 2 Title Update #3` dentro de `Samurai Warriors 2 (USA, Europe)`.
-3. Copia el `default.xex` original del juego base a esa subcarpeta y coloca junto a él el `default.xexp` extraído.
-
-ReXGlue busca el archivo hermano `default.xexp` y aplica el parche en memoria al cargar `default.xex`. Conserva esa copia del ejecutable sin modificar: no apliques el parche previamente con otra herramienta. Mantén también el ejecutable original en la raíz del juego.
-
-Copiar únicamente el contenedor `TU_…` a esa subcarpeta no prepara la actualización. `install-dlc.ps1` / `install-dlc.sh` importan contenido XL a `userdata`; no realizan esta preparación del ejecutable y su parche.
-
-## Compilar y ejecutar (Windows)
-
-Desde la raíz del SDK:
+2. Conserva el contenedor original de Title Update #3 y la carpeta de paquetes XL en cualquier ubicación local.
+3. Desde el directorio `sw2xl-recomp`, ejecuta el build indicando **ambas rutas**:
 
 ```powershell
-.\sw2xl-recomp\build.ps1
-.\sw2xl-recomp\run.ps1
+.\build.ps1 -TitleUpdatePackage 'D:\Samurai Warriors 2 Title Update #3\TU_15KU1UL_000000C000000.00000000000O3' -DlcRoot 'D:\Samurai Warriors 2 XL'
 ```
+
+`-TitleUpdatePackage` apunta al **archivo** del contenedor TU #3; `-DlcRoot`, a la **carpeta** de paquetes XL. Ambos parámetros son obligatorios. Si falta el archivo del Title Update o la carpeta del DLC, el script se detiene antes de configurar o compilar, incluso si quedan archivos preparados de un build anterior.
+
+El script prepara primero Title Update #3: extrae `default.xexp` y copia el ejecutable base a `Samurai Warriors 2 Title Update #3` dentro del directorio del juego. Después extrae `SW2XL_US.dll` a la raíz del juego e importa todos los paquetes XL a `userdata` con un instalador de consola que no ejecuta el juego. Finalmente ejecuta codegen, reconfigura CMake para incorporar los destinos generados y compila. Los archivos preparados que ya existen se conservan; los paquetes de origen no se modifican. Si la extracción o importación falla, no se continúa con codegen ni con la compilación del juego.
+
+ReXGlue busca el archivo hermano `default.xexp` y aplica el parche en memoria al cargar `default.xex`. Conserva esa copia del ejecutable sin modificar: no apliques el parche previamente con otra herramienta. Mantén también el ejecutable original en la raíz del juego.
 
 El ejecutable resultante sigue llamándose `samurai_warriors_2.exe` por compatibilidad con el código generado y queda en `sw2xl-recomp/out/build/win-amd64-release/`.
 
 `build.ps1` espera Visual Studio en `C:\Program Files\Microsoft Visual Studio\18\Community`. Ajusta `$vsRoot` si tu instalación está en otra ruta.
+
+## Recompilar después de una mejora
+
+Después de ejecutar `build` al menos una vez y preparar TU #3 y XL, usa:
+
+```powershell
+.\rebuild.ps1
+```
+
+En Linux: `bash ./rebuild.sh`. No necesitas volver a indicar las rutas de los paquetes originales. `rebuild` comprueba que existan la configuración, las listas de código generado y los archivos preparados del juego. Reutiliza las opciones del SDK y PGO guardadas, omite la preparación del TU y XL y recompila únicamente lo que Ninja detecte como modificado, junto con sus dependencias. Codegen solo se repite si cambian sus entradas. No importa contenido a `userdata` ni limpia el build.
+
+## Ejecutar (Windows)
+
+Después de compilar, ejecuta desde el directorio `sw2xl-recomp`:
+
+```powershell
+.\run.ps1
+```
 
 El launcher usa ventana, XInput, emulación teclado/ratón, RTV/DSV y rutas locales de datos por defecto. Puedes sobrescribir opciones:
 
@@ -76,7 +79,7 @@ El launcher usa ventana, XInput, emulación teclado/ratón, RTV/DSV y rutas loca
 
 ## Instalar contenido Xtreme Legends
 
-Primero compila. Luego importa los contenedores STFS de XL a los datos locales:
+`build` ya importa los contenedores STFS de XL a los datos locales. Para añadir o volver a importar paquetes después, sin iniciar el juego:
 
 ```powershell
 .\sw2xl-recomp\install-dlc.ps1 --dlc-root 'D:\Samurai Warriors 2 XL'
@@ -108,12 +111,15 @@ El resultado predeterminado es `sw2xl-recomp/dist/sw2xl-test-bundle`.
 
 ## Linux
 
-Desde la raíz del SDK:
+Desde el directorio `sw2xl-recomp`, configura las rutas de ambos paquetes antes de ejecutar el script:
 
 ```bash
-./sw2xl-recomp/build.sh
-./sw2xl-recomp/install-dlc.sh --dlc-root '/path/to/Samurai Warriors 2 XL'
-./sw2xl-recomp/run.sh
+cmake --preset linux-amd64-release \
+    '-DREXSDK_DIR=..' \
+    '-DSW2_TU_PACKAGE=/path/to/TU_15KU1UL_000000C000000.00000000000O3' \
+    '-DSW2_DLC_ROOT=/path/to/Samurai Warriors 2 XL'
+./build.sh
+./run.sh
 ```
 
 El binario Linux es `out/build/linux-amd64-release/samurai_warriors_2`. Hay scripts adicionales para PGO, bundle y comparación de rutas Vulkan: `build-pgo-*.sh`, `run-pgo-training.sh`, `package.sh`, `run-fbo.sh` y `run-fsi.sh`.
@@ -136,9 +142,12 @@ El binario Linux es `out/build/linux-amd64-release/samurai_warriors_2`. Hay scri
 | Archivo | Propósito |
 | --- | --- |
 | `build.ps1` / `build.sh` | Compilación Release de sw2xl-recomp |
+| `rebuild.ps1` / `rebuild.sh` | Recompilación incremental sin preparar TU ni XL |
 | `run.ps1` / `run.sh` | Lanzador con rutas de datos locales |
 | `install-dlc.ps1` / `install-dlc.sh` | Importación de contenido XL STFS |
 | `package.ps1` / `package.sh` | Bundle portátil de pruebas XL |
 | `samurai_warriors_2_manifest.toml` | Entrypoint actualizado y módulo XL |
 | `sw2xl_us_config.toml` | Configuración de funciones del módulo XL |
 | `src/dlc_installer.cpp` | Instalador de contenido en tiempo de ejecución |
+
+Para el flujo habitual basta con `build` la primera vez, `rebuild` para las mejoras posteriores y `run` para jugar. `install-dlc` permite importar paquetes adicionales sin iniciar el juego. Los scripts `build-pgo-*` y `run-pgo-training` son opcionales para entrenar PGO; `package` y `run-bundle.sh` sirven para distribuir un bundle. `patch-xl-codegen` se ejecuta desde CMake y sigue siendo necesario. Los lanzadores `run-rtv`, `run-rov`, `run-fbo` y `run-fsi` son atajos opcionales: las mismas opciones se pueden pasar a `run`.

@@ -21,6 +21,70 @@ if(NOT DEFINED REXGLUE_HOST_TARGET)
 endif()
 include(generated/rexglue.cmake)
 
+set(sw2_game_root "${CMAKE_CURRENT_SOURCE_DIR}/../Samurai Warriors 2 (USA, Europe)")
+set(sw2_tu_directory "${sw2_game_root}/Samurai Warriors 2 Title Update #3")
+option(SW2_PREPARE_GAME "Prepare Title Update and XL from original packages" ON)
+
+add_executable(sw2_install_dlc EXCLUDE_FROM_ALL src/install_dlc_main.cpp src/dlc_installer.cpp)
+target_link_libraries(sw2_install_dlc PRIVATE rex::runtime)
+add_custom_command(TARGET sw2_install_dlc POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rex::runtime>
+        $<TARGET_FILE_DIR:sw2_install_dlc>
+    VERBATIM)
+
+# Codegen requires the original Xbox module, before the native XL DLL exists.
+if(SW2_PREPARE_GAME)
+if(WIN32)
+    set(sw2_default_dlc_root "D:/Samurai Warriors 2 XL")
+else()
+    set(sw2_default_dlc_root "${CMAKE_CURRENT_SOURCE_DIR}/../Samurai Warriors 2 XL")
+endif()
+set(SW2_DLC_ROOT "${sw2_default_dlc_root}" CACHE PATH "Local XL STFS packages")
+add_executable(sw2_prepare_xl EXCLUDE_FROM_ALL src/prepare_xl.cpp)
+target_link_libraries(sw2_prepare_xl PRIVATE rex::filesystem rex::core)
+if(WIN32)
+    target_link_libraries(sw2_prepare_xl PRIVATE ws2_32)
+endif()
+add_custom_target(sw2_prepare_xl_module
+    COMMAND $<TARGET_FILE:sw2_prepare_xl> "${SW2_DLC_ROOT}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../Samurai Warriors 2 (USA, Europe)/SW2XL_US.dll"
+    DEPENDS sw2_prepare_xl
+    VERBATIM)
+add_dependencies(samurai_warriors_2_codegen sw2_prepare_xl_module)
+
+set(SW2_TU_PACKAGE "${sw2_tu_directory}/TU_15KU1UL_000000C000000.00000000000O3"
+    CACHE FILEPATH "Original Title Update #3 STFS container")
+if(NOT EXISTS "${SW2_TU_PACKAGE}" OR IS_DIRECTORY "${SW2_TU_PACKAGE}")
+    message(FATAL_ERROR "Title Update #3 package not found: ${SW2_TU_PACKAGE}. Set SW2_TU_PACKAGE.")
+endif()
+if(NOT IS_DIRECTORY "${SW2_DLC_ROOT}")
+    message(FATAL_ERROR "XL DLC directory not found: ${SW2_DLC_ROOT}. Set SW2_DLC_ROOT.")
+endif()
+add_custom_target(sw2_prepare_title_update
+    COMMAND $<TARGET_FILE:sw2_prepare_xl> --tu "${SW2_TU_PACKAGE}"
+        "${sw2_game_root}/default.xex" "${sw2_tu_directory}"
+    DEPENDS sw2_prepare_xl
+    VERBATIM)
+# Serialize preparation even when the build runs with multiple jobs:
+# Title Update #3 -> original XL module -> codegen -> native compilation.
+add_dependencies(sw2_prepare_xl_module sw2_prepare_title_update)
+add_custom_target(sw2_install_dlc_content
+    COMMAND $<TARGET_FILE:sw2_install_dlc> "${sw2_game_root}" "${SW2_DLC_ROOT}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/userdata"
+    DEPENDS sw2_install_dlc sw2_prepare_xl_module
+    VERBATIM)
+add_dependencies(samurai_warriors_2_codegen sw2_install_dlc_content)
+else()
+    foreach(sw2_prepared_file IN ITEMS
+            "${sw2_game_root}/SW2XL_US.dll"
+            "${sw2_tu_directory}/default.xex"
+            "${sw2_tu_directory}/default.xexp")
+        if(NOT EXISTS "${sw2_prepared_file}" OR IS_DIRECTORY "${sw2_prepared_file}")
+            message(FATAL_ERROR "Prepared game file missing: ${sw2_prepared_file}. Run build first.")
+        endif()
+    endforeach()
+endif()
+
 # Git for Windows can check out the cabextract compatibility symlinks in
 # libmspack as plain text files when symlink support is unavailable.  Use the
 # canonical sources that those links reference, without changing the SDK
@@ -135,17 +199,25 @@ endforeach()
 if(TARGET samurai_warriors_2_SW2XL_US)
     target_sources(samurai_warriors_2_SW2XL_US PRIVATE src/event_fix.cpp)
     if(WIN32)
-        add_custom_target(sw2_patch_xl_codegen
+        add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/sw2_patch_xl_codegen.stamp"
             COMMAND powershell -NoProfile -ExecutionPolicy Bypass
                 -File "${CMAKE_CURRENT_SOURCE_DIR}/patch-xl-codegen.ps1"
-            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/generated/sw2xl_us/samurai_warriors_2_init.cpp"
+            COMMAND ${CMAKE_COMMAND} -E touch "${CMAKE_CURRENT_BINARY_DIR}/sw2_patch_xl_codegen.stamp"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/generated/default/codegen.build.stamp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/generated/sw2xl_us/samurai_warriors_2_init.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/patch-xl-codegen.ps1"
             VERBATIM)
     else()
-        add_custom_target(sw2_patch_xl_codegen
+        add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/sw2_patch_xl_codegen.stamp"
             COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/patch-xl-codegen.sh"
-            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/generated/sw2xl_us/samurai_warriors_2_init.cpp"
+            COMMAND ${CMAKE_COMMAND} -E touch "${CMAKE_CURRENT_BINARY_DIR}/sw2_patch_xl_codegen.stamp"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/generated/default/codegen.build.stamp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/generated/sw2xl_us/samurai_warriors_2_init.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/patch-xl-codegen.sh"
             VERBATIM)
     endif()
+    add_custom_target(sw2_patch_xl_codegen
+        DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/sw2_patch_xl_codegen.stamp")
     # Codegen rewrites module_registry.cpp. Ensure this project-side patch
     # always runs after it, rather than racing its generated outputs.
     add_dependencies(sw2_patch_xl_codegen samurai_warriors_2_codegen)

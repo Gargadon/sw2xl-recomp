@@ -124,7 +124,7 @@ void sw2_track_free(PPCRegister& pointer, PPCRegister& flags) {
   }
   FILE* file = std::fopen("allocation-diagnostics.txt", "a");
   if (!file) return;
-  std::fprintf(file, "\n%s free pointer=%08X flags=%08X thread=%lu\n",
+  std::fprintf(file, "\n%s free pointer=%08X flags=%08X thread=%u\n",
       exact != allocations.end() ? "REPEATED" : "UNTRACKED", pointer.u32,
       flags.u32, CurrentThreadId());
   auto upper = allocations.upper_bound(pointer.u32);

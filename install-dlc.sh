@@ -14,4 +14,7 @@ fi
 
 [[ -d "$dlc_root" ]] || { echo "DLC directory not found: $dlc_root" >&2; exit 1; }
 dlc_root=$(cd -- "$dlc_root" && pwd)
-exec "$script_dir/run.sh" --sw2_dlc_root "$dlc_root" --log_level warn
+installer="$script_dir/out/build/linux-amd64-release/sw2_install_dlc"
+[[ -f "$installer" ]] || { echo 'DLC installer is missing. Run build.sh first.' >&2; exit 1; }
+export LD_LIBRARY_PATH="$(dirname -- "$installer")${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec "$installer" "$(dirname -- "$script_dir")/Samurai Warriors 2 (USA, Europe)" "$dlc_root" "$script_dir/userdata"

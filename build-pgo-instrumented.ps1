@@ -11,8 +11,12 @@ Get-ChildItem -LiteralPath $profileDir -Filter '*.profraw' -File -ErrorAction Si
 
 Push-Location $PSScriptRoot
 try {
-    cmake --preset win-amd64-release "-DREXSDK_DIR=$sdkRoot" -DSW2_PGO=GENERATE
+    cmake --preset win-amd64-release "-DREXSDK_DIR=$sdkRoot" -DSW2_PGO=GENERATE -DSW2_PREPARE_GAME=ON
     if ($LASTEXITCODE -ne 0) { throw 'PGO instrumentation configuration failed.' }
+    cmake --build --preset win-amd64-release --target samurai_warriors_2_codegen -j 6
+    if ($LASTEXITCODE -ne 0) { throw 'Code generation failed.' }
+    cmake --preset win-amd64-release
+    if ($LASTEXITCODE -ne 0) { throw 'CMake configuration after codegen failed.' }
     cmake --build --preset win-amd64-release -j 6
     if ($LASTEXITCODE -ne 0) { throw 'PGO instrumentation build failed.' }
 } finally {

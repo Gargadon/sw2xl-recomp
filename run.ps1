@@ -31,6 +31,14 @@ foreach ($option in $defaults.Keys) {
 Push-Location (Split-Path -Parent $exe)
 try {
     & $exe --game_data_root "$sdkRoot\Samurai Warriors 2 (USA, Europe)" --gpu_plugin xenos @launchArgs
+    $gameExitCode = $LASTEXITCODE
 } finally {
     Pop-Location
+}
+if ($gameExitCode -ne 0) {
+    $logDir = Join-Path (Split-Path -Parent $exe) 'logs'
+    $latestLog = Get-ChildItem -LiteralPath $logDir -Filter 'samurai_warriors_2_*.log' -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $logPath = if ($latestLog) { $latestLog.FullName } else { $logDir }
+    throw "Game exited with code $gameExitCode. See log: $logPath"
 }
