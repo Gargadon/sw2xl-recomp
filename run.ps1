@@ -30,8 +30,18 @@ foreach ($option in $defaults.Keys) {
 }
 Push-Location (Split-Path -Parent $exe)
 try {
-    & $exe --game_data_root "$sdkRoot\Samurai Warriors 2 (USA, Europe)" --gpu_plugin xenos @launchArgs
-    $gameExitCode = $LASTEXITCODE
+    $gameArgs = @('--game_data_root', "$sdkRoot\Samurai Warriors 2 (USA, Europe)", '--gpu_plugin', 'xenos') + $launchArgs
+    # Start-Process joins ArgumentList on Windows. Quote each argument, including
+    # embedded quotes and trailing backslashes, to preserve paths with spaces.
+    $quotedArgs = foreach ($argument in $gameArgs) {
+        $escaped = [regex]::Replace([string]$argument, '(\\*)"', '$1$1\"')
+        '"' + ([regex]::Replace($escaped, '(\\+)$', '$1$1')) + '"'
+    }
+    # GUI executables may return control without setting LASTEXITCODE when
+    # invoked with & in an interactive PowerShell session.
+    $gameProcess = Start-Process -FilePath $exe -ArgumentList ($quotedArgs -join ' ') -WorkingDirectory (Split-Path -Parent $exe) -Wait -PassThru
+    $gameExitCode = $gameProcess.ExitCode
+    $global:LASTEXITCODE = $gameExitCode
 } finally {
     Pop-Location
 }
